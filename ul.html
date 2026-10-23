@@ -1,0 +1,518 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>УРЕЙСКИЙ ЛЕТУН</title>
+    <style>
+        /* Подключаем бодрый шрифт Russo One */
+        @import url('https://fonts.googleapis.com/css2?family=Russo+One&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            height: 100dvh;
+            background-color: #222;
+            font-family: 'Russo One', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            max-width: 800px;
+            max-height: 100vh;
+            overflow: hidden;
+        }
+
+        @media (min-width: 800px) {
+            #game-container {
+                width: 800px;
+                height: 600px;
+                border: 4px solid #fff;
+                box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            }
+        }
+
+        #background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('bg.jpg'); /* ВАША КАРТИНКА ЗДЕСЬ */
+            background-size: cover;
+            background-position: center;
+            image-rendering: pixelated;
+            filter: contrast(1.2) saturate(1.5) blur(1px);
+            z-index: 1;
+        }
+
+        #pixel-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px);
+            background-size: 4px 4px;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 3;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 4;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        #start-screen, #game-over-screen {
+            background: rgba(0, 0, 0, 0.85);
+            padding: 25px 20px;
+            border: 4px solid #f1c40f;
+            border-radius: 15px;
+            text-align: center;
+            color: white;
+            pointer-events: auto;
+            width: 85%;
+            max-width: 450px;
+            box-sizing: border-box;
+            box-shadow: 0 0 20px rgba(241, 196, 15, 0.4);
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 15px;
+            color: #f1c40f;
+            text-shadow: 3px 3px 0px #e74c3c;
+            line-height: 1.3;
+            letter-spacing: 1px;
+        }
+
+        p {
+            font-size: 14px;
+            margin: 12px 0;
+            line-height: 1.6;
+            color: #ecf0f1;
+        }
+
+        #phrase-text {
+            color: #f1c40f;
+            font-size: 15px;
+            margin: 20px 0;
+            min-height: 45px;
+            font-weight: bold;
+            line-height: 1.5;
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        button {
+            font-family: 'Russo One', sans-serif;
+            font-size: 16px;
+            padding: 15px 25px;
+            margin-top: 15px;
+            background-color: #e74c3c;
+            color: white;
+            border: 3px solid white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.1s;
+            width: 100%;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 5px 0 #c0392b;
+        }
+
+        button:active {
+            background-color: #c0392b;
+            transform: translateY(5px);
+            box-shadow: 0 0px 0 #c0392b;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="background"></div>
+        <div id="pixel-grid"></div>
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui-layer">
+            <div id="start-screen">
+                <h1>УРЕЙСКИЙ ЛЕТУН</h1>
+                <p>Тапай по экрану, чтобы лететь!</p>
+                <p>Не влетай в трубы!</p>
+                <button id="start-btn">ПОГНАЛИ!</button>
+            </div>
+            
+            <div id="game-over-screen" class="hidden">
+                <h1>ОПЯТЬ НЕ ДОЛЕТЕЛ!</h1>
+                <p>Счёт: <span id="final-score" style="color:#e74c3c; font-size: 20px;">0</span></p>
+                <p id="phrase-text"></p>
+                <button id="restart-btn">ДАВАЙ ЕЩЁ!</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('game-container');
+        
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const startBtn = document.getElementById('start-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const finalScoreEl = document.getElementById('final-score');
+        const phraseTextEl = document.getElementById('phrase-text');
+
+        // Забайкальские фразочки
+        const phrases = [
+            "Ваа, ты пашто голоуши то по зиме шасташ? Быром напялил шапку!",
+            "Неее, пойду обутки и монатки упучканые пошиньгаю в бане.",
+            "Ты чё моя болташ?",
+            "Вот так всё браво и растёть!",
+            "Ну ты и Кеша-курощуп, даже трубы облететь не смог.",
+            "Харэ дурью маяться, как зунтугло, делай бравенько!",
+            "Ой, ты какой бравенький, а трубы-то не осилил.",
+            "Сзади хомут, Ермолаем зовут — вот твой результат.",
+            "Дикошарый ты какой-то, аист же!",
+            "Ты мояточка, не расстраивайся, попробуй ещё раз.",
+            "Урэ! Почти получилось, давай исчо!"
+        ];
+
+        let canvasWidth = 800;
+        let canvasHeight = 600;
+        let scaleFactor = 1;
+
+        function resizeCanvas() {
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            canvasWidth = rect.width;
+            canvasHeight = rect.height;
+            
+            ctx.imageSmoothingEnabled = false;
+            
+            scaleFactor = Math.min(canvasWidth / 800, canvasHeight / 600);
+            if (scaleFactor < 0.5) scaleFactor = 0.5;
+        }
+
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            if (!isGameRunning) {
+                bird.y = canvasHeight / 2;
+                bird.draw();
+            }
+        });
+
+        let gravity = 0.3;
+        let jumpForce = -6;
+        let gameSpeed = 2.5;
+        let score = 0;
+        let isGameOver = false;
+        let isGameRunning = false;
+        let frameCount = 0;
+
+        const bird = {
+            x: 150,
+            y: 300,
+            width: 32,
+            height: 32,
+            velocity: 0,
+            draw: function() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                
+                let angle = Math.min(Math.max(this.velocity * 0.05, -0.5), 1.5);
+                ctx.rotate(angle);
+                
+                // Тело
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-8, -8, 20, 16);
+                ctx.fillRect(-4, -12, 12, 8); 
+                
+                // Крылья
+                ctx.fillStyle = '#000000';
+                if (this.velocity < 0) {
+                    ctx.fillRect(-16, -12, 8, 8);
+                    ctx.fillRect(8, -12, 8, 8);
+                } else {
+                    ctx.fillRect(-16, 4, 8, 8);
+                    ctx.fillRect(8, 4, 8, 8);
+                }
+                
+                // Клюв
+                ctx.fillStyle = '#e74c3c';
+                ctx.fillRect(8, -8, 8, 4);
+                
+                // Ноги
+                ctx.fillRect(-4, 8, 4, 8);
+                ctx.fillRect(4, 8, 4, 8);
+
+                // Пятно
+                ctx.fillRect(0, -12, 4, 4);
+
+                ctx.restore();
+            },
+            update: function() {
+                this.velocity += gravity * scaleFactor;
+                this.y += this.velocity;
+
+                if (this.y + this.height/2 > canvasHeight) {
+                    this.y = canvasHeight - this.height/2;
+                    isGameOver = true;
+                }
+                if (this.y - this.height/2 < 0) {
+                    this.y = this.height/2;
+                    this.velocity = 0;
+                }
+            },
+            jump: function() {
+                if (!isGameOver && isGameRunning) {
+                    this.velocity = jumpForce * scaleFactor;
+                }
+            }
+        };
+
+        let pipes = [];
+        let pipeWidth = 50;
+        let pipeGap = 160;
+
+        function spawnPipe() {
+            let currentGap = pipeGap * scaleFactor;
+            if (currentGap < 120) currentGap = 120;
+
+            let minHeight = 50 * scaleFactor;
+            let maxHeight = canvasHeight - currentGap - (50 * scaleFactor);
+            
+            if (maxHeight <= minHeight) maxHeight = minHeight + 50;
+
+            let topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+            
+            pipes.push({
+                x: canvasWidth,
+                topHeight: topHeight,
+                bottomY: topHeight + currentGap,
+                passed: false,
+                width: pipeWidth * scaleFactor
+            });
+        }
+
+        function drawPipes() {
+            pipes.forEach(pipe => {
+                let capHeight = 20 * scaleFactor;
+                let capExtra = 5 * scaleFactor;
+
+                ctx.fillStyle = '#2e7d32'; 
+                ctx.fillRect(pipe.x, 0, pipe.width, pipe.topHeight);
+                
+                ctx.fillStyle = '#1b5e20';
+                ctx.fillRect(pipe.x - capExtra, pipe.topHeight - capHeight, pipe.width + (capExtra*2), capHeight);
+
+                ctx.fillStyle = '#2e7d32';
+                ctx.fillRect(pipe.x, pipe.bottomY, pipe.width, canvasHeight - pipe.bottomY);
+                
+                ctx.fillStyle = '#1b5e20';
+                ctx.fillRect(pipe.x - capExtra, pipe.bottomY, pipe.width + (capExtra*2), capHeight);
+                
+                ctx.fillStyle = '#4caf50';
+                ctx.fillRect(pipe.x + 5, 0, 5 * scaleFactor, pipe.topHeight);
+                ctx.fillRect(pipe.x + 5, pipe.bottomY, 5 * scaleFactor, canvasHeight - pipe.bottomY);
+            });
+        }
+
+        function updatePipes() {
+            let spawnRate = 100;
+            if (scaleFactor < 0.8) spawnRate = 120; 
+
+            if (frameCount % spawnRate === 0 && isGameRunning && !isGameOver) {
+                spawnPipe();
+            }
+
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                let p = pipes[i];
+                p.x -= gameSpeed * scaleFactor;
+
+                let birdLeft = bird.x - bird.width/2;
+                let birdRight = bird.x + bird.width/2;
+                let birdTop = bird.y - bird.height/2;
+                let birdBottom = bird.y + bird.height/2;
+
+                if (
+                    birdRight > p.x &&
+                    birdLeft < p.x + p.width &&
+                    (birdTop < p.topHeight || birdBottom > p.bottomY)
+                ) {
+                    isGameOver = true;
+                }
+
+                if (p.x + p.width < birdLeft && !p.passed) {
+                    p.passed = true;
+                    score++;
+                }
+
+                if (p.x + p.width < 0) {
+                    pipes.splice(i, 1);
+                }
+            }
+        }
+
+        function drawScore() {
+            ctx.fillStyle = '#fff';
+            let fontSize = 30 * scaleFactor;
+            if (fontSize < 16) fontSize = 16;
+            
+            ctx.font = `bold ${fontSize}px 'Russo One'`;
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 4 * scaleFactor;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            let text = score.toString();
+            ctx.strokeText(text, canvasWidth / 2, 60 * scaleFactor);
+            ctx.fillText(text, canvasWidth / 2, 60 * scaleFactor);
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+            if (isGameRunning && !isGameOver) {
+                bird.update();
+                updatePipes();
+                frameCount++;
+            }
+
+            drawPipes();
+            bird.draw();
+            
+            if (isGameRunning || isGameOver) {
+                drawScore();
+            }
+
+            if (isGameOver && isGameRunning) {
+                isGameRunning = false;
+                finalScoreEl.innerText = score;
+                
+                const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
+                phraseTextEl.innerText = randomPhrase;
+                
+                gameOverScreen.classList.remove('hidden');
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function handleAction() {
+            if (!isGameRunning && !isGameOver) {
+                startGame();
+            } else if (isGameRunning && !isGameOver) {
+                bird.jump();
+            }
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            handleAction();
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
+                e.preventDefault();
+                handleAction();
+            }
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); 
+            handleAction();
+        }, { passive: false });
+
+        document.body.addEventListener('touchmove', (e) => {
+            if (e.target === canvas || e.target === document.body) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        startBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startGame();
+        });
+        startBtn.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            startGame();
+        }, { passive: false });
+
+        restartBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startGame();
+        });
+        restartBtn.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            startGame();
+        }, { passive: false });
+
+        function startGame() {
+            isGameRunning = true;
+            isGameOver = false;
+            score = 0;
+            bird.y = canvasHeight / 2;
+            bird.velocity = 0;
+            pipes = [];
+            frameCount = 0;
+            
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            
+            spawnPipe();
+        }
+
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            bird.y = canvasHeight / 2;
+            bird.draw();
+            gameLoop();
+        });
+
+        resizeCanvas();
+        bird.y = canvasHeight / 2;
+        gameLoop();
+    </script>
+</body>
+</html>
